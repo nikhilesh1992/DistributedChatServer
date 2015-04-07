@@ -1,0 +1,39 @@
+Three clients - Sam, Nick, Jatin
+
+Constraint : Number of clients/User = 20
+
+Entities in all the clients
+	-Map of all clients (Everyone)
+
+	-Resend Queue ( Queue to be maintained for sending messages in case of duplicacy or message lost )
+	-Send Queue ( Queue to be maintained for all sent messages in order to have ordering)
+	-Hold-Back Queue ( For the case of total ordering )
+
+	-Receive Queues ( Receive messages + timestamp + enqueue in case of leader listening to all clients)
+
+	-Counter for total-ordering
+	-Counter for acknowledgements to identify which ACK corresponds to which message
+
+
+Each client maintains a table 
+1.Sam starts group and creates a table with its entry and also makes itself the leader
+2.Nick tries connecting to Sam
+	2.1 Nick sends req to Sam to join group and waits for updated table with messaage strcat for printing on console
+		- If table recvd then connection established 
+		- Else times out automatically and resends the request to Sam again based on the table entries at Sam
+3.Similarly do for Jatin client
+4.Nick sends a message to group hence sends message to Sam. Also maintains 2 queues(endQueue & resendQueue) in which it stores the actual message to be sent and then maintains a copy unitil it receives an acknowledgement from the leader as to the message has been received.
+	- If the ACK is received then it removes the message from the Resend Queue
+	- Else it sends the message again from the Resend Queue upon timeout and also keeps the message in the queue unitl acknowledged.
+5. To maintain total ordering for messages we maintain a counter at every client and receives messages based on what the client counter is expecting
+	- If the seq number doesn't match with the (counter + 1) at the clients side then it is put in the hold back queue and removed when the sequence number matches with the top of the queue then remove from the queue.
+6. Crashing / Exiting of client
+	- If non - leader crashes
+		- Client dies, in this case leader is checking after certain time interval for all active clients and if 3 continuos msgs are not ACK by a client then the given client has crashed/left
+	- If non - leader leaves the group
+		- Before exiting the group it msgs the leader, the leader updates its table and broadcasts to all the active participants that this particular user has left with the updated table 
+
+	- If leader exits
+		- Pass the leadership to the next highest ID in the table and then notify the corresponding client that it has become the current client. On this msg, the new leader broadcasts the msg to all the other active clients.
+		- If leader crashes, and if any given client attempts to send messages and doesn't receive any ACK from the leader for 3 consecutive tries then hold smart election.
+			- In smart election the client that identifies the leader has crashed sends a msg to the client with the highest ID number in the table to become the leader. Then if it receives an ACK ( I am leader msg ) from the supposedly new leader then proceed or else send msg to the next highest until it receives an ACK.
