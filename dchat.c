@@ -143,3 +143,12 @@
 
 	return 0;
 }
+
+void copyUserDatabaseTable(ChatUserInfo *table)
+{
+	int i;
+	for(i=0;i<20;i++)
+	{
+		chatUser[i] = table[i];
+	}
+}

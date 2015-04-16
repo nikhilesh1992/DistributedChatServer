@@ -28,7 +28,6 @@
 #define THREADNUMBER 8
 
 //Structure definitions
-
 struct chatUserInfo 
 {
 	int ID;
@@ -57,3 +56,6 @@ struct QueueNode
 }*headSendQ, *tailSendQ, *headRecvQ,*tailRecvQ, *headBackupQ, *tailBackupQ, *headGlobalSendQ, *tailGlobalSendQ, *headAvailableIDQueue, 
 *tailAvailableIDQueue;
 typedef struct QueueNode QueueNode;
+
+//Function definitions
+void copyUserDatabaseTable(ChatUserInfo *);
