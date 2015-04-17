@@ -152,3 +152,213 @@ void copyUserDatabaseTable(ChatUserInfo *table)
 		chatUser[i] = table[i];
 	}
 }
+
+void controllerLeader(char *buf, ArrayString *arrayString)
+{
+	char bufBroadCast[BUFSIZE];
+	strcpy( bufBroadCast,buf);
+	generalisedStringTok(buf,arrayString);
+	int createReturn;
+	if(strcmp(arrayString[0].String,"Add")==0)
+	{
+		if( checkIfUsernameExists(arrayString[1].String) == 1)
+		{
+			char bufIdentifier[BUFSIZE];
+			strcpy(bufIdentifier,"String");
+			if (sendto(socketIdentifier,bufIdentifier, sizeof(bufIdentifier), 0,(SA *)&incomingAddr, sizeof(incomingAddr)) < 0)
+			{
+				perror("Error in sendto from server to client");
+			}
+			strcpy(bufIdentifier,"Error-2");
+			if (sendto(socketIdentifier,bufIdentifier, sizeof(bufIdentifier), 0,(SA *)&incomingAddr, sizeof(incomingAddr)) < 0)	
+			{
+				perror("Error in sendto from server to client");
+			}
+		}
+		else
+		{
+			if( iterator < 20 )
+			{
+				broadCastMsg(socketIdentifier,4,arrayString[1].String);
+				chatUser[iterator].ID = ID;																//Updating the table with new User
+				strcpy(chatUser[iterator].Username,arrayString[1].String);
+				chatUser[iterator].Port = ntohs(incomingAddr.sin_port);
+				chatUser[iterator].isActive = 1;
+				chatUser[iterator].isLeader = 0;
+				chatUser[iterator].receivedMsgSeqNo = 0;
+				chatUser[iterator].timerBroadcastCheck = 0;
+				chatUser[iterator].timerMsgBroadcastCheck = 0;
+				setTimeStamper();
+				strcpy(chatUser[iterator].IP,inet_ntoa(incomingAddr.sin_addr));
+				iterator++;
+				ID--;
+				int check = broadCastMsg(socketIdentifier,1,buf);
+				if(check == 0)
+				{
+					fprintf(stderr, "BroadCast Unsuccessful\n");
+				}
+			}
+			else
+			{
+				if( headAvailableIDQueue != NULL && tailAvailableIDQueue != NULL)
+				{
+					broadCastMsg(socketIdentifier,4,arrayString[1].String);
+					dequeue(&headAvailableIDQueue,&tailAvailableIDQueue);
+					int index = atoi(dequeuedMsg);
+					chatUser[index].ID = ( 20 - index );																//Updating the table with new User
+					strcpy(chatUser[index].Username,arrayString[1].String);
+					chatUser[index].Port = ntohs(incomingAddr.sin_port);
+					chatUser[index].isActive = 1;
+					chatUser[index].isLeader = 0;
+					chatUser[index].receivedMsgSeqNo = 0;
+					chatUser[index].timerBroadcastCheck = 0;
+					chatUser[index].timerMsgBroadcastCheck = 0;
+					setTimeStamper();
+					strcpy(chatUser[index].IP,inet_ntoa(incomingAddr.sin_addr));
+				}
+				else
+				{
+					//20 users in group no more ca be added
+					sendMessageForUserLimit();
+				}
+			}
+		}		
+	}
+	else if(strcmp(arrayString[0].String,"Exists")==0)
+	{
+		updateMap(arrayString[2].String);
+		//timer2 = 0;	//Ressting the timer when the leader sends it to himself
+		//printf("Inside Exists string (%s) and incoming seq#:%d and table seq#:%d\n",bufBroadCast,(atoi(arrayString[3].String)),getSeqNoOfUser(arrayString[2].String));
+		if(atoi(arrayString[3].String) <= getSeqNoOfUser(arrayString[2].String))	//message exists in queue, checking duplicacy
+		{
+			//printf("Inside Exists and in the less than case\n");
+			//resendAck
+		}
+		else if((atoi(arrayString[3].String)) == (getSeqNoOfUser(arrayString[2].String) + 1))	//if there is a new message coming
+		{
+			updateUserMsgNo(arrayString[2].String);
+			strcpy(bufBroadCast, sequencer(bufBroadCast, &timeStamper));	//assigning timestamper in the order in which leader receives the messages from 	
+			// different users
+			//store in globalQueue
+			enqueue(bufBroadCast, &headGlobalSendQ, &tailGlobalSendQ);	// Note: While sending remove the timestamper from the msg
+			int check = broadCastMsg(socketIdentifier,2,bufBroadCast);
+			if(check == 0)
+			{
+				fprintf(stderr, "BroadCast Unsuccessful\n");
+			}
+			//sendAck
+		}
+	}
+	else if(strcmp(arrayString[0].String,"AckTable")==0)
+	{
+		//resends table to users from whom ackTable is not received
+		//printf("AckTable ack received from user: %s\n",arrayString[1].String);
+		resetTimerForGivenUser(arrayString[1].String,1);
+		//printf("Timer stopped for user: %s\n",arrayString[1].String );
+	}
+	else if(strcmp(arrayString[0].String,"AckRecvdBroadcastMsg")==0)
+	{
+		//printf("AckRecvdBroadcastMsg ack received from user: %s\n",arrayString[1].String);
+		resetTimerForGivenUser(arrayString[1].String,2);
+	}
+	else if(strcmp(arrayString[0].String,"Exiting")==0)
+	{
+		chatUser[findIndexOfUserName(arrayString[1].String)].isActive = 0;
+		tableCleanUp();
+		broadCastMsg(socketIdentifier,1,bufBroadCast);
+		strcpy(bufBroadCast,arrayString[1].String);
+		broadCastMsg(socketIdentifier,3,bufBroadCast);
+	}
+	else if(strcmp(arrayString[0].String,"Alert")==0)
+	{
+		struct sockaddr_in tempAddr;
+		bzero( &tempAddr, sizeof(tempAddr));
+		tempAddr.sin_family = AF_INET;
+		tempAddr.sin_port = htons(atoi(arrayString[3].String));
+		if( inet_pton( AF_INET, arrayString[2].String, &tempAddr.sin_addr ) <= 0 )
+		{
+			perror( "Unable to convert address to inet_pton \n" );
+			exit( 99 );
+		}
+		if( checkIfUsernameExists(arrayString[1].String) == 1)
+		{
+			char bufIdentifier[BUFSIZE];
+			strcpy(bufIdentifier,"String");
+			if (sendto(socketIdentifier,bufIdentifier, sizeof(bufIdentifier), 0,(SA *)&tempAddr, sizeof(tempAddr)) < 0)
+			{
+				perror("Error in sendto from server to client");
+			}
+			strcpy(bufIdentifier,"Error-2");
+			if (sendto(socketIdentifier,bufIdentifier, sizeof(bufIdentifier), 0,(SA *)&tempAddr, sizeof(tempAddr)) < 0)	
+			{
+				perror("Error in sendto from server to client");
+			}
+		}
+		else
+		{
+			if( iterator < 20 )
+			{
+				broadCastMsg(socketIdentifier,4,arrayString[1].String);
+				chatUser[iterator].ID = ID;																//Updating the table with new User
+				strcpy(chatUser[iterator].Username,arrayString[1].String);
+				chatUser[iterator].Port = atoi(arrayString[3].String);
+				chatUser[iterator].isActive = 1;
+				chatUser[iterator].isLeader = 0;
+				chatUser[iterator].receivedMsgSeqNo = 0;
+				chatUser[iterator].timerBroadcastCheck = 0;
+				chatUser[iterator].timerMsgBroadcastCheck = 0;
+				setTimeStamper();
+				strcpy(chatUser[iterator].IP,arrayString[2].String);
+				iterator++;
+				ID--;
+				int check = broadCastMsg(socketIdentifier,1,buf);
+				if(check == 0)
+				{
+					fprintf(stderr, "BroadCast Unsuccessful\n");
+				}
+			}
+			else
+			{
+				if( headAvailableIDQueue != NULL && tailAvailableIDQueue != NULL)
+				{
+					broadCastMsg(socketIdentifier,4,arrayString[1].String);
+					dequeue(&headAvailableIDQueue,&tailAvailableIDQueue);
+					int index = atoi(dequeuedMsg);
+					chatUser[index].ID = ( 20 - index );																//Updating the table with new User
+					strcpy(chatUser[index].Username,arrayString[1].String);
+					chatUser[index].Port = ntohs(incomingAddr.sin_port);
+					chatUser[index].isActive = 1;
+					chatUser[index].isLeader = 0;
+					chatUser[index].receivedMsgSeqNo = 0;
+					chatUser[index].timerBroadcastCheck = 0;
+					chatUser[index].timerMsgBroadcastCheck = 0;
+					setTimeStamper();
+					strcpy(chatUser[index].IP,inet_ntoa(incomingAddr.sin_addr));
+				}
+				else
+				{
+					//20 users in group no more ca be added
+					sendMessageForUserLimit();
+				}
+			}
+		}
+	}
+}
+
+void enqueue(char *message, QueueNode **head, QueueNode **tail)
+{
+	QueueNode *addNode=NULL;
+	addNode = (QueueNode *)malloc(1*sizeof(QueueNode));
+	strcpy(addNode -> content,message);
+	addNode -> next = NULL;
+	if( *head==NULL && *tail==NULL )
+	{
+		*head = addNode;
+		*tail = addNode;
+	}
+	else
+	{
+		(*tail) -> next = addNode;
+		*tail = addNode;
+	}
+}

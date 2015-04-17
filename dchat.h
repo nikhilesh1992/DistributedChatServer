@@ -59,3 +59,5 @@ typedef struct QueueNode QueueNode;
 
 //Function definitions
 void copyUserDatabaseTable(ChatUserInfo *);
+void controllerLeader(char *, ArrayString *);
+void enqueue(char *, QueueNode**, QueueNode**);
