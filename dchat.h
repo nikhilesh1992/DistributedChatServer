@@ -81,6 +81,7 @@ void copyUserDatabaseTable(ChatUserInfo *);
 void controllerLeader(char *, ArrayString *);
 char *sequencer(char *, int*);
 int getSeqNoOfUser(char *);
+void controllerNonLeader(char *, ArrayString *);
 void updateUserMsgNo(char *);
 void enqueue(char *, QueueNode**, QueueNode**);
 void updateTimeStamper();

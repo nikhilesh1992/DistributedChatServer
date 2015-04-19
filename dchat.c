@@ -411,6 +411,84 @@ void controllerLeader(char *buf, ArrayString *arrayString)
 	}
 }
 
+void controllerNonLeader(char *buf, ArrayString *arrayString)
+{
+	char bufPrint[BUFSIZE];
+	strcpy(bufPrint, buf);
+	char tempMsg[BUFSIZE];
+	
+	generalisedStringTok(buf,arrayString);
+	
+	if(strcmp(arrayString[0].String,"Message")==0)
+	{
+		timer2 = 0;	//reset timer2 to 0 on receipt of broadcasted message
+		controllerAcknowledgement("AckRecvdBroadcastMsg", nameOfUser);
+		if( headBackupQ != NULL && tailBackupQ != NULL)
+		{
+			dequeue(&headBackupQ,&tailBackupQ);
+			if( headBackupQ != NULL && tailBackupQ != NULL)
+			{
+				strcpy(tempMsg,peakQueue(&headBackupQ, &tailBackupQ));
+				strcpy(tempMsg, sequencer(tempMsg, &sequenceNumber));	//assigning sequenceNumber to messages from a particular user
+				if( sendto(socketIdentifier, tempMsg, BUFSIZE, 0, (SA *)&leaderaddr, sizeof(leaderaddr)) < 0 )
+				{
+				  perror( "Sending message to server failed" );
+				}
+			}
+		}
+		updateHoldBackList(bufPrint, &headHoldBackList, &tailHoldBackList);
+	}
+	else if(strcmp(arrayString[0].String,"BecomeLeader")==0)
+	{
+		char tempMsg[BUFSIZE];
+		timer2 = 0;
+		timer1 = 0;
+		chatUser[findIndexOfUserName(arrayString[1].String)].isActive = 0;
+		chatUser[findIndexOfUserName(nameOfUser)].isLeader = 1;
+		tableCleanUp();
+		//printTable();
+		updateLeaderAddress();
+		int check = broadCastMsg(socketIdentifier,1,buf);
+		if(check == 0)
+		{
+			fprintf(stderr, "BroadCast Unsuccessful\n");
+		}
+		strcpy(bufPrint,arrayString[1].String);
+		broadCastMsg(socketIdentifier,3,bufPrint);
+		while(headBackupQ != NULL && tailBackupQ != NULL)
+		{
+
+			strcpy(tempMsg,peakQueue(&headBackupQ, &tailBackupQ));
+			strcpy(tempMsg, sequencer(tempMsg, &sequenceNumber));	//assigning sequenceNumber to messages from a particular user
+			if( sendto(socketIdentifier, tempMsg, BUFSIZE, 0, (SA *)&leaderaddr, sizeof(leaderaddr)) < 0 )
+			{
+			  perror( "Sending message to server failed" );
+			}
+			dequeue(&headBackupQ, &tailBackupQ);
+		}
+		//sendtable
+	}
+	else if(strcmp(arrayString[0].String,"Error-1")==0)
+	{
+		fprintf(stderr,"Maximum number of users in the group can be atmost 20\n");
+		exit(-1);
+	}
+	else if(strcmp(arrayString[0].String,"Error-2")==0)
+	{
+		fprintf(stderr,"Username already exists\n");
+		exit(-1);
+	}
+	else if(strcmp(arrayString[0].String,"Notice")==0)
+	{
+		fprintf(stdout,"%s\n",arrayString[1].String);
+	}
+	else if(strcmp(arrayString[0].String,"Congestion")==0)
+	{
+		fprintf(stdout,"Causing congestion\n");
+		slowDownMsg = 1;
+	}
+}
+
 char* sequencer(char *unseqString, int *number)
 {
 	(*number)++;
