@@ -362,3 +362,193 @@ void enqueue(char *message, QueueNode **head, QueueNode **tail)
 		*tail = addNode;
 	}
 }
+
+void updateTimeStamper()
+{
+	int i;
+	for(i=0;i<20;i++)
+	{
+		if(chatUser[i].isLeader == 1)
+			checkTimeStamper = chatUser[i].updatedNewEntryTimeStamper;
+	}
+}
+
+void setTimeStamper()
+{
+	int i;
+	for(i=0;i<20;i++)
+	{
+		if(chatUser[i].isLeader == 1)
+			chatUser[i].updatedNewEntryTimeStamper = timeStamper;
+	}
+}
+
+void updateHoldBackList(char *msg, InsertionList **head, InsertionList **tail)
+{
+	//TO DO: optimization of if-else temp->next ==NULL
+	char tempbuf[500];
+	ArrayString arrayString[20];
+	strcpy(tempbuf, msg);
+	generalisedStringTok(tempbuf, arrayString);
+	InsertionList *addNode = (InsertionList *)malloc(sizeof(InsertionList));
+	strcpy(addNode->msg, msg);
+	addNode->seqNum = atoi(arrayString[2].String); //Message~Sam:: Hi~timestamper
+	addNode->next = NULL;
+	if(*head == NULL && *tail == NULL)
+	{
+		//printf("first message added out of order\n");
+		*head = addNode;
+		*tail = addNode;
+	}
+	else
+	{
+		//printf("message added to holdbacklist\n");
+		InsertionList *temp;
+		temp = *head;
+		while(temp != NULL)
+		{
+			if(addNode->seqNum < temp->seqNum)
+			{
+				*head = addNode;
+				addNode->next = temp;
+				break;
+			}
+			else if(temp == *tail)
+			{
+				(*tail)->next = addNode;
+				(*tail) = addNode;
+				break;
+			}	
+			else if((addNode->seqNum > temp->seqNum) && (addNode->seqNum < (temp->next->seqNum)))
+			{
+				addNode->next = temp->next;
+				temp->next = addNode;
+				break;
+			}
+			temp = temp->next;
+		}
+	}
+}
+
+void *threadForAckTableReceiveCallback(void *bufMsg)
+{
+	time_t start;
+	time_t diff;
+	struct sockaddr_in tempAddr;
+	char bufIdentifier[BUFSIZE];
+	int retry = 0;
+	int i;
+	while(1)
+	{
+		if(amILeader(nameOfUser) == 1)
+		{
+			for(i=0,retry=0;i<20;i++)
+			{
+				if(chatUser[i].timerBroadcastCheck == 1 && !(isTableEntryEmpty(chatUser[i])) && (amILeader(chatUser[i].Username) == 0))
+				{
+					start = time (NULL);	//timer started
+					//printf("Timer:%s has started\n",chatUser[i].Username);
+					while(chatUser[i].timerBroadcastCheck == 1 && !(isTableEntryEmpty(chatUser[i])))	//still if timer on	; waiting for timer1 to get 0 when ack is received
+					{
+						diff = (time (NULL) - start);
+						if(diff > 5)	//no response from leader for 60 secs
+						{
+							if(retry < 3)	//try one more time
+							{
+								printf("Retry#(Table-Leader) : %d\n",retry);
+								bzero( &tempAddr, sizeof(tempAddr));
+								tempAddr.sin_family = AF_INET;
+								tempAddr.sin_port = htons(chatUser[i].Port);
+								if( inet_pton( AF_INET, chatUser[i].IP, &tempAddr.sin_addr ) <= 0 )
+								{
+									perror( "Unable to convert address to inet_pton \n" );
+									exit( 99 );
+								}
+								strcpy(bufIdentifier,"Table");
+								if (sendto(socketIdentifier,bufIdentifier, sizeof(bufIdentifier), 0,(SA *)&tempAddr, sizeof(tempAddr)) < 0)
+								{
+									perror("Error in sendto from server to client");
+									return 0;
+								}
+								if (sendto(socketIdentifier,chatUser, sizeof(chatUser), 0,(SA *)&tempAddr, sizeof(tempAddr)) < 0)
+								{
+									perror("Error in sendto from server to client");
+									return 0;
+								}
+								//printf("60 seconds elapsed, send message again\n");
+								retry++;
+								start = time (NULL);	//restart timer
+								break;
+							}
+							else
+							{
+								chatUser[i].isActive = 0;
+								broadCastMsg(socketIdentifier,3,chatUser[i].Username);
+								tableCleanUp();
+								chatUser[i].timerBroadcastCheck = 0;
+								broadCastMsg(socketIdentifier,1,bufIdentifier);
+								retry = 0;
+								break;
+							}
+						}
+					}
+				}
+				//timer1 to be reset on success on receiving acknowledge
+			}
+		}
+	}
+}
+
+void *threadForTableReceiveCallback(void *bufMsg)
+{
+	time_t start;
+	time_t diff;
+	int retry = 0;
+	char tempMsg[500];
+	while(1)
+	{
+		if(amILeader(nameOfUser) == 0)
+		{
+			if(timer1 == 1)
+			{
+				//printf("Timer-1 has started\n");
+				start = time (NULL);	//timer started
+				while(timer1 == 1)	//still if timer on	; waiting for timer1 to get 0 when ack is received
+				{
+					diff = (time (NULL) - start);
+					if(diff > 5)	//no response from leader for 60 secs
+					{
+						if(retry < 3)	//try one more time
+						{
+							printf("Retry#(Table-User) : %d\n",retry);
+							if( sendto(socketIdentifier, bufMsg, BUFSIZE, 0, (SA *)&leaderaddr, sizeof(leaderaddr)) < 0 )
+							{
+							  perror( "Sending message to server failed" );
+							}
+							//printf("60 seconds elapsed, send message again\n");
+							retry++;
+							start = time (NULL);	//restart timer
+							break;
+						}
+						else
+						{
+							//conduct leader election if it is not the first time
+							if(isTableEmpty() > 1)
+								conductLeaderElection();
+							else
+							{
+								printf("User:%s timed out\n",nameOfUser);
+								exit(0);
+							}
+							//printf("Leader dead-table\n");
+							timer1 = 0;
+							retry = 0;
+							break;
+						}
+					}
+				}
+			}
+			//timer1 to be reset on success on receiving acknowledge
+		}
+	}
+}

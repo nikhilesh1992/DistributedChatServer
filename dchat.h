@@ -61,3 +61,8 @@ typedef struct QueueNode QueueNode;
 void copyUserDatabaseTable(ChatUserInfo *);
 void controllerLeader(char *, ArrayString *);
 void enqueue(char *, QueueNode**, QueueNode**);
+void updateTimeStamper();
+void setTimeStamper();
+void updateHoldBackList(char*, InsertionList**, InsertionList**);
+void *threadForAckTableReceiveCallback(void *);
+void *threadForTableReceiveCallback(void *);
