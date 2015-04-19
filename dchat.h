@@ -57,7 +57,26 @@ struct QueueNode
 *tailAvailableIDQueue;
 typedef struct QueueNode QueueNode;
 
+//Global Variables
+ChatUserInfo chatUser[20];
+char IP[20];
+int port,socketIdentifier;
+struct sockaddr_in leaderaddr,useraddr,incomingAddr;
+int ID=20,iterator=0;
+char nameOfUser[15];
+char dequeuedMsg[500];
+int timeStamper = 0;
+int sequenceNumber = 0;
+int checkTimeStamper;
+int timer1 =0, timer2 =0;
+pthread_t threadMessaging[THREADNUMBER];
+pthread_attr_t attribute;
+
 //Function definitions
+int createSocket(); 
+void ipAddPortParsing(char *);
+void toSendAddr(char *, int);
+void generalisedStringTok(char *, ArrayString *);
 void copyUserDatabaseTable(ChatUserInfo *);
 void controllerLeader(char *, ArrayString *);
 void enqueue(char *, QueueNode**, QueueNode**);

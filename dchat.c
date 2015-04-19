@@ -144,6 +144,72 @@
 	return 0;
 }
 
+int createsocket()
+{
+	int sockfd;
+	if( (sockfd = socket(AF_INET, SOCK_DGRAM, 0 )) < 0 )
+	{
+		perror( "Unable to open a socketIdentifier" );
+		exit( ERR_SOCKET );
+	}
+	bzero( &useraddr, sizeof(useraddr));
+	useraddr.sin_family = AF_INET;
+	useraddr.sin_port = htons( randomPortGenerator() );
+	useraddr.sin_addr.s_addr = htonl(INADDR_ANY);
+	if (bind(sockfd, (SA *)&useraddr, sizeof(useraddr)) < 0) 
+	{
+		perror("Binding failed");
+		return 0;
+	}
+return sockfd;
+}
+
+void toSendAddr(char* IP,int port)
+{
+	bzero( &leaderaddr, sizeof(leaderaddr));
+	leaderaddr.sin_family = AF_INET;
+	leaderaddr.sin_port = htons(port);
+	if( inet_pton( AF_INET, IP, &leaderaddr.sin_addr ) <= 0 )
+	{
+		perror( "Unable to convert address to inet_pton \n" );
+		exit( 99 );
+	}
+}
+
+void ipAddPortParsing(char *toParse)
+{
+	int index = 0;
+	char* token = strtok(toParse, ":");
+	while (token) 
+	{
+		if(index==0)
+		{
+			strcpy(IP,token);
+		}
+		else if(index==1)
+		{
+			port = atoi(token);
+		}
+		token = strtok(NULL, ":");
+		index++;
+	}
+}
+
+void generalisedStringTok(char *toParse,ArrayString *arrayString)
+{
+	char temp[500];
+	strcpy(temp,toParse);
+	int index = 0;
+	char* token = strtok(temp, "~");
+	while (token) 
+	{
+		strcpy(arrayString[index].String,token);
+		token = strtok(NULL, "~");
+		index++;
+	}
+}
+
+
 void copyUserDatabaseTable(ChatUserInfo *table)
 {
 	int i;
