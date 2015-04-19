@@ -411,6 +411,44 @@ void controllerLeader(char *buf, ArrayString *arrayString)
 	}
 }
 
+char* sequencer(char *unseqString, int *number)
+{
+	(*number)++;
+	char numberOfMsgs[4];
+	strcat(unseqString, "~");
+	sprintf(numberOfMsgs, "%d", *number);
+	strcat(unseqString, numberOfMsgs);
+	return unseqString;
+}
+
+int getSeqNoOfUser(char *userName)
+{
+	int i = 0;
+	char user[15];
+	strcpy(user, userName);
+	//printf("isnide get: %s\n", user);
+	for(i= 0; i < 20; i++)
+	{
+		//printf("name: %s", chatUser[i].Username);
+		if(strcmp(chatUser[i].Username, user) == 0)
+			return chatUser[i].receivedMsgSeqNo;
+	}
+	//printf("here\n");
+	return -1;
+}
+
+void updateUserMsgNo(char *nameOfUser)
+{
+	int j = 0;
+	for(j = 0; j < 20; j++)
+	{
+		if(strcmp(chatUser[j].Username, nameOfUser) == 0)
+		{
+			(chatUser[j].receivedMsgSeqNo)++;
+		}
+	}
+}
+
 void enqueue(char *message, QueueNode **head, QueueNode **tail)
 {
 	QueueNode *addNode=NULL;
