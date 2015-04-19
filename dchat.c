@@ -618,3 +618,122 @@ void *threadForTableReceiveCallback(void *bufMsg)
 		}
 	}
 }
+
+char* getIP(char *IPAdd)
+{
+	FILE *fp;
+	fp = popen("/sbin/ifconfig em1 | grep 'inet addr:' | cut -d: -f2 | awk '{ print $1}'", "r");
+	while (fgets(IPAdd,20, fp) != NULL)
+	{
+	    //printf("%s", IP);
+	}
+	pclose(fp);	
+	IPAdd[strlen(IPAdd)-1] = '\0';
+	return IPAdd;	
+}
+
+void conductLeaderElection()
+{
+	//printf("Inside conduct leader election\n");
+	int k, maxId, maxIDIndex, flag = 0;
+	struct sockaddr_in tempAddr;
+	char crashedUser[15];
+	for(k = 0; k < 20; k++)
+	{
+		if(chatUser[k].isActive == 1 && !(isTableEntryEmpty(chatUser[k])))
+		{
+			if( flag == 0)
+			{
+				maxId = chatUser[k].ID;
+				maxIDIndex = k;
+				flag = 1;
+			}
+			else
+			{
+				if(chatUser[k].ID > maxId)
+				{
+					maxId = chatUser[k].ID;
+					maxIDIndex = k;
+				}
+			}
+		}
+	}
+	strcpy(crashedUser,chatUser[maxIDIndex].Username);
+	int max2Id, max2IDIndex;
+	for(k = 0,flag=0; k < 20; k++)
+	{
+		if(chatUser[k].isActive == 1 && !(isTableEntryEmpty(chatUser[k])))
+		{
+			if( flag == 0 && k != maxIDIndex)
+			{
+				max2Id = chatUser[k].ID;
+				max2IDIndex = k;
+				flag = 1;
+			}
+			else
+			{
+				if(chatUser[k].ID > max2Id && k != maxIDIndex)
+				{
+					max2Id = chatUser[k].ID;
+					max2IDIndex = k;
+				}
+			}
+		}
+	}
+	//printf("Next Leader:%s,IP:%s,Port:%d\n",chatUser[max2IDIndex].Username,chatUser[max2IDIndex].IP,chatUser[max2IDIndex].Port);
+	
+	bzero( &tempAddr, sizeof(tempAddr));
+	tempAddr.sin_family = AF_INET;
+	tempAddr.sin_port = htons(chatUser[max2IDIndex].Port);
+	if( inet_pton( AF_INET, chatUser[max2IDIndex].IP, &tempAddr.sin_addr ) <= 0 )
+	{
+		perror( "Unable to convert address to inet_pton \n" );
+		exit( 99 );
+	}
+	char bufIdentifier[BUFSIZE];
+	strcpy(bufIdentifier,"String");
+	if (sendto(socketIdentifier,bufIdentifier, sizeof(bufIdentifier), 0,(SA *)&tempAddr, sizeof(tempAddr)) < 0)
+	{
+		perror("Error in sendto from server to client");
+	}
+	strcpy(bufIdentifier, "BecomeLeader");
+	strcat(bufIdentifier, "~");
+	strcat(bufIdentifier, crashedUser);
+	//printf("%s\n",bufIdentifier);
+	if (sendto(socketIdentifier,bufIdentifier, sizeof(bufIdentifier), 0,(SA *)&tempAddr, sizeof(tempAddr)) < 0)
+	{
+		perror("Error in sendto from server to client");
+	}
+}
+
+void tableCleanUp()
+{
+	int i;
+	char tempIndex[500];
+	for(i = 0; i < 20; i++)
+	{
+		if(!(isTableEntryEmpty(chatUser[i])))
+		{
+			if(chatUser[i].isActive == 0)
+			{
+				clearTableEntry(chatUser, i);
+				//enqueue
+				sprintf(tempIndex, "%d", i);
+				enqueue(tempIndex, &headAvailableIDQueue, &tailAvailableIDQueue);
+			}
+		}
+	}
+}
+
+int numOfChatUsers()
+{
+	int i,count=0;
+	for(i=0;i<20;i++)
+	{
+		if(!(isTableEntryEmpty(chatUser[i])))
+		{
+			count++;
+		}
+	}
+	return count;
+}

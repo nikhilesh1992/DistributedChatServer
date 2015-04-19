@@ -85,3 +85,7 @@ void setTimeStamper();
 void updateHoldBackList(char*, InsertionList**, InsertionList**);
 void *threadForAckTableReceiveCallback(void *);
 void *threadForTableReceiveCallback(void *);
+char *getIP(char *);
+void conductLeaderElection();
+void tableCleanUp();
+int numOfChatUsers();
