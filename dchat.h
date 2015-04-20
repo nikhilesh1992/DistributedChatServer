@@ -93,3 +93,4 @@ char *getIP(char *);
 void conductLeaderElection();
 void tableCleanUp();
 int numOfChatUsers();
+int isTableEmpty();

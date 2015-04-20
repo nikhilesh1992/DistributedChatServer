@@ -853,3 +853,16 @@ int numOfChatUsers()
 	}
 	return count;
 }
+
+int isTableEmpty()
+{
+	int i,count=0;
+	for(i=0;i<20;i++)
+	{
+		if((isTableEntryEmpty(chatUser[i])) == 0)
+		{
+			count++;
+		}
+	}
+	return count;
+}
