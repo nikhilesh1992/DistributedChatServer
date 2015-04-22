@@ -527,6 +527,27 @@ void updateUserMsgNo(char *nameOfUser)
 	}
 }
 
+char *deleteNode(char *msgbuf, InsertionList **head, InsertionList **tail)
+{
+	InsertionList *removeNode;
+	if( *head == *tail)
+	{
+		removeNode = *head;
+		strcpy(msgbuf, (*head)->msg);
+		free(removeNode);
+		*head = NULL;
+		*tail = NULL;
+	}
+	else
+	{
+		removeNode = *head;
+		*head = removeNode->next;
+		strcpy(msgbuf, removeNode->msg);
+		free(removeNode);
+	}
+	return msgbuf;
+}
+
 void enqueue(char *message, QueueNode **head, QueueNode **tail)
 {
 	QueueNode *addNode=NULL;
@@ -637,25 +658,28 @@ void *threadForAckTableReceiveCallback(void *bufMsg)
 						{
 							if(retry < 3)	//try one more time
 							{
-								printf("Retry#(Table-Leader) : %d\n",retry);
+								printf("Retry#(Table-Leader):%d for %s\n",retry,chatUser[i].Username);
 								bzero( &tempAddr, sizeof(tempAddr));
 								tempAddr.sin_family = AF_INET;
 								tempAddr.sin_port = htons(chatUser[i].Port);
 								if( inet_pton( AF_INET, chatUser[i].IP, &tempAddr.sin_addr ) <= 0 )
 								{
+									fprintf(logFile, "ERROR: \n");
 									perror( "Unable to convert address to inet_pton \n" );
-									exit( 99 );
+									closeChatServer();
 								}
 								strcpy(bufIdentifier,"Table");
 								if (sendto(socketIdentifier,bufIdentifier, sizeof(bufIdentifier), 0,(SA *)&tempAddr, sizeof(tempAddr)) < 0)
 								{
+									fprintf(logFile, "ERROR: \n");
 									perror("Error in sendto from server to client");
-									return 0;
+									closeChatServer();
 								}
 								if (sendto(socketIdentifier,chatUser, sizeof(chatUser), 0,(SA *)&tempAddr, sizeof(tempAddr)) < 0)
 								{
+									fprintf(logFile, "ERROR: \n");
 									perror("Error in sendto from server to client");
-									return 0;
+									closeChatServer();
 								}
 								//printf("60 seconds elapsed, send message again\n");
 								retry++;
@@ -680,6 +704,7 @@ void *threadForAckTableReceiveCallback(void *bufMsg)
 		}
 	}
 }
+
 
 void *threadForTableReceiveCallback(void *bufMsg)
 {
@@ -822,6 +847,66 @@ void conductLeaderElection()
 	}
 }
 
+void* threadClearGlobalQ(void *arg)
+{
+	int i,flag=0;
+	while(1)
+	{
+		sleep(5000);
+		for(i=0;i<20;i++)
+		{
+			if(chatUser[i].timerMsgBroadcastCheck == 0)
+				flag = 1;
+			else
+			{
+				flag = 0;
+				break;
+			}
+		}
+		if(flag == 1)
+		{
+			dequeue(&headGlobalSendQ,&tailGlobalSendQ);
+			flag = 0;
+		}
+	}
+}
+
+void sendMessageForUserLimit()
+{
+	char bufIdentifier[BUFSIZE];
+	strcpy(bufIdentifier,"String");
+	if (sendto(socketIdentifier,bufIdentifier, sizeof(bufIdentifier), 0,(SA *)&incomingAddr, sizeof(incomingAddr)) < 0)
+	{
+		fprintf(logFile, "ERROR: \n");
+		perror("Error in sendto from server to client");
+		closeChatServer();
+	}
+	strcpy(bufIdentifier,"Error-1");
+	if (sendto(socketIdentifier,bufIdentifier, sizeof(bufIdentifier), 0,(SA *)&incomingAddr, sizeof(incomingAddr)) < 0)
+	{
+		fprintf(logFile, "ERROR: \n");
+		perror("Error in sendto from server to client");
+		closeChatServer();
+	}
+}
+
+void updateLeaderAddress()
+{
+	int i,tempPort;
+	char tempIP[20];
+
+	for(i=0;i<20;i++)
+	{
+		if( chatUser[i].isLeader == 1)
+		{
+			strcpy(tempIP, chatUser[i].IP);
+			tempPort = chatUser[i].Port;
+		}
+	}
+	//printf("%s,%d\n",tempIP,tempPort);
+	toSendAddr(tempIP,tempPort);
+}
+
 void tableCleanUp()
 {
 	int i;
@@ -837,6 +922,18 @@ void tableCleanUp()
 				sprintf(tempIndex, "%d", i);
 				enqueue(tempIndex, &headAvailableIDQueue, &tailAvailableIDQueue);
 			}
+		}
+	}
+}
+
+void printTable()
+{
+	int i;
+	for(i=0;i<20;i++)
+	{
+		if( !(isTableEntryEmpty(chatUser[i])))
+		{
+			printf("Username:%s,IP:%s,Port#:%d,isActive:%d,isLeader:%d\n",chatUser[i].Username,chatUser[i].IP,chatUser[i].Port,chatUser[i].isActive,chatUser[i].isLeader);
 		}
 	}
 }
